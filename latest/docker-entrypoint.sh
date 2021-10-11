@@ -5,7 +5,6 @@ REPLICA_SET_NAME=${REPLICA_SET_NAME:=rs0}
 USERNAME=${USERNAME:=dev}
 PASSWORD=${PASSWORD:=dev}
 
-
 function waitForMongo {
     port=$1
     n=0
@@ -17,40 +16,21 @@ function waitForMongo {
     done
 }
 
-if [ ! "$(ls -A /data/db1)" ]; then
-    mkdir /data/db1
-    mkdir /data/db2
-    mkdir /data/db3
-fi
-
 echo "STARTING CLUSTER"
 
-mongod --port 27003 --smallfiles --dbpath /data/db3 --replSet $REPLICA_SET_NAME --bind_ip=::,0.0.0.0 &
-DB3_PID=$!
-mongod --port 27002 --smallfiles --dbpath /data/db2 --replSet $REPLICA_SET_NAME --bind_ip=::,0.0.0.0 &
-DB2_PID=$!
-mongod --port 27001 --smallfiles --dbpath /data/db1 --replSet $REPLICA_SET_NAME --bind_ip=::,0.0.0.0 &
-DB1_PID=$!
+mongod --port 27017 --dbpath /data/db --replSet $REPLICA_SET_NAME --bind_ip=::,0.0.0.0 &
+DB_PID=$!
 
-waitForMongo 27001
-waitForMongo 27002
-waitForMongo 27003
+waitForMongo 27017
 
 echo "CONFIGURING REPLICA SET"
-CONFIG="{ _id: '$REPLICA_SET_NAME', members: [{_id: 0, host: 'localhost:27001', priority: 2 }, { _id: 1, host: 'localhost:27002' }, { _id: 2, host: 'localhost:27003' } ]}"
-mongo admin --port 27001 --eval "db.runCommand({ replSetInitiate: $CONFIG })"
+CONFIG="{ _id: '$REPLICA_SET_NAME', members: [{_id: 0, host: '127.0.0.1:27017'}]}"
+mongo admin --port 27017 --eval "db.runCommand({ replSetInitiate: $CONFIG })"
 
-waitForMongo 27002
-waitForMongo 27003
-
-mongo admin --port 27001 --eval "db.runCommand({ setParameter: 1, quiet: 1 })"
-mongo admin --port 27002 --eval "db.runCommand({ setParameter: 1, quiet: 1 })"
-mongo admin --port 27003 --eval "db.runCommand({ setParameter: 1, quiet: 1 })"
+mongo admin --port 27017 --eval "db.runCommand({ setParameter: 1, quiet: 1 })"
 
 echo "REPLICA SET ONLINE"
 
-trap 'echo "KILLING"; kill $DB1_PID $DB2_PID $DB3_PID; wait $DB1_PID; wait $DB2_PID; wait $DB3_PID' SIGINT SIGTERM EXIT
+trap 'echo "KILLING"; kill $DB_PID; wait $DB_PID;' SIGINT SIGTERM EXIT
 
-wait $DB1_PID
-wait $DB2_PID
-wait $DB3_PID
+wait $DB_PID

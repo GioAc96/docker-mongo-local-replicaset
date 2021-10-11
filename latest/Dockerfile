@@ -1,7 +1,7 @@
-FROM mongo:latest
+FROM mongo:5.0.3
 
 VOLUME /data
-EXPOSE 27001 27002 27003
+EXPOSE 27017
 
 COPY docker-entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
